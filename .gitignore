@@ -1,4 +1,8 @@
 
+# Files used for testing
+vimeo_tests/api_keys.py
+vimdeo_tests/upload_test.*
+
 # Swaps and tempfiles
 *.pyc
 *.pyo
@@ -8,3 +12,6 @@
 
 # Python packaging junk
 *.egg*/
+
+# Incedentals
+*.gz

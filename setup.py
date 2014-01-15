@@ -1,22 +1,16 @@
 #!/usr/bin/env setup
 
 try:
-    from setuptools import setup
+    from setuptools import setup, find_packages
 except ImportError:
-    try:
-        from ez_setup import use_setuptools
-        use_setuptools()
-        from setuptools import setup
-    except ImportError:
-        # Finally, fall back to disutils
-        from distutils.core import setup
+    from ez_setup import use_setuptools
+    use_setuptools()
+    from setuptools import setup, find_packages
 
 setup(
-    name = 'vimeo-py-lib',
+    name = 'vimeo',
     version = '0.0.0',
-    py_modules = [
-        'vimeo',
-    ],
+    packages = find_packages(exclude=['vimeo_tests']),
     author='Artlogic Media Limited',
     author_email='support@artlogic.net',
     description = open('README.md').read(),
