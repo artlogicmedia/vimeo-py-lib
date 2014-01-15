@@ -1,0 +1,10 @@
+
+# Swaps and tempfiles
+*.pyc
+*.pyo
+*.swp
+*.swo
+*.swn
+
+# Python packaging junk
+*.egg*/
