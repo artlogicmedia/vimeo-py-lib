@@ -1,6 +1,15 @@
 #!/usr/bin/env setup
 
-from distutils.core import setup
+try:
+    from setuptools import setup
+except ImportError:
+    try:
+        from ez_setup import use_setuptools
+        use_setuptools()
+        from setuptools import setup
+    except ImportError:
+        # Finally, fall back to disutils
+        from distutils.core import setup
 
 setup(
     name = 'vimeo-py-lib',
