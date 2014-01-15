@@ -21,6 +21,13 @@ import urllib2
 import uuid
 
 try:
+    import urlparse
+    parse_qs = urlparse.parse_qs
+except AttributeError:
+    import cgi
+    parse_qs = cgi.parse_qs
+
+try:
     import cPickle
     pickle = cPickle
 except ImportError:
@@ -75,7 +82,7 @@ class VimeoAPI(object):
     __token = None
     __token_secret = None
 
-    __oauth_drop_keys = ('oauth_nonce', 'oauth_signature', 'oauth_timestamp')
+    __cache_drop_keys = ('oauth_nonce', 'oauth_signature', 'oauth_timestamp')
 
     def __init__(self,
         consumer_key,
@@ -95,7 +102,7 @@ class VimeoAPI(object):
         """
 
         # Remove some unique things
-        for i in self.__oauth_drop_keys:
+        for i in self.__cache_drop_keys:
             if i in params:
                 del params[i]
 
@@ -110,8 +117,7 @@ class VimeoAPI(object):
             # bytes written. str() is used to cast any unicode back to a string.
             return len(str(response_data))
         elif self.__cache_enabled == self.CACHE_MEMORY:
-            self.__memory_cache[hash] = (pickle.dumps(response_data),
-                                            time.time())
+            self.__memory_cache[hash] = (response_data, time.time())
 
     def __generate_auth_header(self, oauth_params):
         """
@@ -179,7 +185,7 @@ class VimeoAPI(object):
         Get the unserialized contents of the cached request.
         """
         # Remove some unique things
-        for i in self.__oauth_drop_keys:
+        for i in self.__cache_drop_keys:
             if i in params:
                 del params[i]
 
@@ -316,8 +322,7 @@ class VimeoAPI(object):
         self.set_token(
             t['oauth_token'],
             t['oauth_token_secret'],
-            'request',
-            true)
+            'request')
 
         url = self.get_authorize_url(self.__token, permission)
         return url
@@ -338,14 +343,22 @@ class VimeoAPI(object):
             method = 'vimeo.' + method
         return self.__request(method, params, request_method, url, cache)
 
-    def enable_cache(self, type, path, expire = 600):
+    def enable_cache(self, type, path = '.', expire = 600):
         """
-        Enable the cache
+        Enable the cache, or switch between cache types.
         """
         self.__cache_enabled = type
-        if type == self.CACHE_MEMORY:
+        if type == CACHE_MEMORY:
             self.__memory_cache = {}
+        elif type == CACHE_FILE:
+            self.__cache_dir = path
         self.__cache_expire = expire
+
+    def disable_cache(self):
+        """
+        Disable the cache.
+        """
+        self.__cache_enabled = None
 
     def get_access_token(self, verifier):
         """
@@ -372,7 +385,14 @@ class VimeoAPI(object):
         request_token = self.__request(None, {
                 'oauth_callback': callback_url
             }, 'GET', API_REQUEST_TOKEN_URL, False, False)
-        return request_token
+        # These are returned as a query string
+        params = parse_qs(request_token)
+        for k, v in params.items():
+            if len(v) == 1:
+                params[k] = v[0]
+            elif len(v) == 0:
+                params[k] = None,
+        return params
 
     def get_token(self):
         """
