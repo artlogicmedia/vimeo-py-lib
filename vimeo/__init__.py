@@ -61,7 +61,7 @@ class VimeoAPIException(Exception):
     A subclass of Exception that provides the api method, error code, and error
     message of the API response.
     """
-    
+
     def __init__(self, method, code, msg):
         self.method = method
         self.code = code
@@ -74,7 +74,7 @@ class VimeoAPIException(Exception):
 class VimeoAPI(object):
 
     __cache_expire = 600
-    
+
     __consumer_key = None
     __consumer_secret = None
     __cache_enabled = None
@@ -100,6 +100,8 @@ class VimeoAPI(object):
         """
         Cache an API response
         """
+
+        params = copy.copy(params)
 
         # Remove some unique things
         for i in self.__cache_drop_keys:
@@ -138,8 +140,9 @@ class VimeoAPI(object):
         """
         Generate a nonce for the call.
         """
-        uid = str(uuid.uuid4())
-        return hashlib.md5(uid).hexdigest()
+        return 'b0242ebe27867eb078f9af10ad687298'
+#        uid = str(uuid.uuid4())
+#        return hashlib.md5(uid).hexdigest()
 
     def __generate_signature(self,
         params,
@@ -184,6 +187,8 @@ class VimeoAPI(object):
         """
         Get the unserialized contents of the cached request.
         """
+
+        params = copy.copy(params)
         # Remove some unique things
         for i in self.__cache_drop_keys:
             if i in params:
@@ -227,7 +232,7 @@ class VimeoAPI(object):
             'oauth_consumer_key': self.__consumer_key,
             'oauth_version': '1.0',
             'oauth_signature_method': 'HMAC-SHA1',
-            'oauth_timestamp': int(time.time()),
+            'oauth_timestamp': 1389808533, ##int(time.time()),
             'oauth_nonce': self.__generate_nonce(),
         }
 
@@ -236,7 +241,7 @@ class VimeoAPI(object):
             oauth_params['oauth_token'] = self.__token
 
         # Regular args
-        api_params = {'format': 'json'}
+        api_params = {'format': 'php'}
         if method:
             api_params['method'] = method
 
@@ -248,7 +253,6 @@ class VimeoAPI(object):
                 api_params[k] = v
 
         signature_params = dict(oauth_params.items() + api_params.items())
-            
         # Generate the signature
         oauth_params['oauth_signature'] = self.__generate_signature(
                                         signature_params, request_method, url)
@@ -280,9 +284,17 @@ class VimeoAPI(object):
             headers = {}
 
         if request_method == 'POST':
-            request = urllib2.Request(request_url, params, headers)
+            request = urllib2.Request(request_url, urllib.urlencode(params), headers)
         else:
             request = urllib2.Request(request_url, headers = headers)
+#            print request_url, headers, use_auth_header
+#            for k in params:
+#                if not k in request_url:
+#                    raise Exception("Found it")
+
+        request.add_header('User-Agent', "Python/vimeo.VimeoAPI")
+        for k, v in ({'Content-Length': '0', 'Content-Type': '', 'Host': 'server.michael.artlogic.net:5836', 'Accept': '*/*'}).items():
+            request.add_header(k, v)
             
         try:
             response = urllib2.urlopen(request, timeout = 30)
@@ -292,7 +304,6 @@ class VimeoAPI(object):
             socket.setdefaulttimeout(30)
             # For some reason using the default header that urllib2 provides
             # causes the API to always return XML and not JSON.
-            request.add_header('User-Agent', "Python/vimeo.VimeoAPI")
             response = urllib2.urlopen(request)
             socket.setdefaulttimeout(old_default)
 
@@ -391,7 +402,7 @@ class VimeoAPI(object):
             if len(v) == 1:
                 params[k] = v[0]
             elif len(v) == 0:
-                params[k] = None,
+                params[k] = None
         return params
 
     def get_token(self):
@@ -400,7 +411,7 @@ class VimeoAPI(object):
         """
         return self.__token, self.__token_secret
 
-    def set_token(self, token, token_secret, type = 'access'):
+    def set_token(self, token, token_secret):
         """
         Set the OAuth token
         """
