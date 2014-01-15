@@ -149,7 +149,9 @@ class VimeoAPI(object):
         # Make sure we iterate the dict in sorted order. Unlike PHP, Python does
         # not guarantee dict key order. We aren't using collections.OrderedDict
         # here because we want to support 2.5+.
-        querystring = '&'.join(['%s="%s"' % (k, params[k]) for k in keys])
+        items = [(k, params[k]) for k in keys]
+        querystring = urllib.urlencode(items)
+        #querystring = '&'.join(['%s="%s"' % (k, params[k]) for k in keys])
 
         # Make the base string
         base_parts = (
@@ -239,14 +241,14 @@ class VimeoAPI(object):
             elif v is not None:
                 api_params[k] = v
 
-        # Merge all args
-        all_params = {}
-        for d in (oauth_params, api_params):
-            all_params.update(d)
+        signature_params = dict(oauth_params.items() + api_params.items())
             
         # Generate the signature
-        oauth_params['oauth_signature'] = self.__generate_signature(all_params,
-                                                request_method, url)
+        oauth_params['oauth_signature'] = self.__generate_signature(
+                                        signature_params, request_method, url)
+
+        # Merge all args
+        all_params = dict(oauth_params.items() + api_params.items())
 
         # Return cached value
         if self.__cache_enabled:
@@ -271,8 +273,6 @@ class VimeoAPI(object):
         else:
             headers = {}
 
-        print request_url, params, request_method, headers
-
         if request_method == 'POST':
             request = urllib2.Request(request_url, params, headers)
         else:
@@ -287,13 +287,11 @@ class VimeoAPI(object):
             # For some reason using the default header that urllib2 provides
             # causes the API to always return XML and not JSON.
             request.add_header('User-Agent', "Python/vimeo.VimeoAPI")
-            print repr(request)
             response = urllib2.urlopen(request)
             socket.setdefaulttimeout(old_default)
 
         if method:
             response_data = response.read()
-            print response_data
             response_data = json_decode(response_data)
 
             # Cache the response
