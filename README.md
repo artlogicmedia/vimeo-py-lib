@@ -35,3 +35,7 @@ as follows:
   specifically, or HTTP errors generated during requests more generally.
 * This module also provides an in-memory cache for requests, which is just a
   dict within the `VimeoAPI` instance.
+
+## Bugs
+
+Please file any bugs you find on the Github issues page for this project.
