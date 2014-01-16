@@ -9,7 +9,7 @@ except ImportError:
 
 setup(
     name = 'vimeo',
-    version = '0.0.0',
+    version = '0.0.1',
     packages = find_packages(exclude=['vimeo_tests']),
     author='Artlogic Media Limited',
     author_email='support@artlogic.net',
