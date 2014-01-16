@@ -1,5 +1,5 @@
 """
-This module provides a straight port of the phpVimeo class in Vimeo's
+This module provides a (nearly) straight port of the phpVimeo class in Vimeo's
 vimeo-php-lib library (https://github.com/vimeo/vimeo-php-lib).
 
 There are probably plenty of further Python-centric adjustments that could be
@@ -13,8 +13,11 @@ import copy
 import hashlib
 import hmac
 import math
+import mimetypes
 import os
+import random
 import socket
+import string
 import time
 import urllib
 import urllib2
@@ -62,7 +65,7 @@ class VimeoAPIException(Exception):
     message of the API response.
     """
 
-    def __init__(self, method, code, msg):
+    def __init__(self, method = '', code = '', msg = ''):
         self.method = method
         self.code = code
         self.msg = msg
@@ -71,7 +74,7 @@ class VimeoAPIException(Exception):
         return "API Error calling method %s: %s %s" % \
             (self.method, self.code, self.msg)
 
-class VimeoAPI(object):
+class VimeoClient(object):
 
     _cache_expire = 600
 
@@ -84,16 +87,19 @@ class VimeoAPI(object):
 
     _cache_drop_keys = ('oauth_nonce', 'oauth_signature', 'oauth_timestamp')
 
+    _app_name = None
+
     def __init__(self,
         consumer_key,
         consumer_secret,
         token = None,
         token_secret = None,
-        user_agent = None):
+        app_name = None):
+
 
         self._consumer_key = consumer_key
         self._consumer_secret = consumer_secret
-        self._user_agent = user_agent
+        self._app_name = app_name or ''
 
         if token and token_secret:
             self.set_token(token, token_secret)
@@ -113,14 +119,14 @@ class VimeoAPI(object):
         params = urllib.urlencode(params)
         hash = hashlib.md5(params).hexdigest()
 
-        if self._cache_enabled == self.CACHE_FILE:
+        if self._cache_enabled == CACHE_FILE:
             f = os.path.join(self._cache_dir, hash, '.cache')
             with open(f, 'w') as f:
                 pickle.dump(response_data, f)
             # Match the PHP library's functionality, which returns the number of
             # bytes written. str() is used to cast any unicode back to a string.
             return len(str(response_data))
-        elif self._cache_enabled == self.CACHE_MEMORY:
+        elif self._cache_enabled == CACHE_MEMORY:
             self.__memory_cache[hash] = (response_data, time.time())
 
     def __generate_auth_header(self, oauth_params):
@@ -131,7 +137,7 @@ class VimeoAPI(object):
         auth_header = 'OAuth realm=""'
 
         for k, v in oauth_params.items():
-            vals = map(self.url_encode_rfc3986, (k, v))
+            vals = map(self.url_encode_rfc3986, (k, str(v)))
             auth_header += ',%s="%s"' % tuple(vals)
 
         # We're using urllib2.Request to make our request, so this returns a
@@ -197,7 +203,7 @@ class VimeoAPI(object):
         params = urllib.urlencode(params)
         hash = hashlib.md5(params).hexdigest
 
-        if self._cache_enabled == self.CACHE_FILE:
+        if self._cache_enabled == CACHE_FILE:
             f = os.path.join(self._cache_dir, hash, '.cache')
             # Check to see if the cache file is expired and remove it
             last_modified = os.path.getmtime(f)
@@ -207,12 +213,12 @@ class VimeoAPI(object):
             if os.path.exists(f):
                 with open(f) as f:
                     return pickle.load(f)
-        elif self._cache_enabled == self.CACHE_MEMORY:
+        elif self._cache_enabled == CACHE_MEMORY:
             for k, v in self.__memory_cache.items():
                 _, last_modified = v
                 if last_modified + self._cache_expire < time.time():
                     del self.__memory_cache[k]
-            return self.__memory_cache.get(k)
+            return self.__memory_cache.get(hash)
 
     def __request(self,
         method,
@@ -226,6 +232,7 @@ class VimeoAPI(object):
         """
         if call_params is None:
             call_params = {}
+        request_method = request_method.upper()
 
         # Prepare oauth arguments
         oauth_params = {
@@ -247,13 +254,13 @@ class VimeoAPI(object):
 
         # Merge args
         for k, v in call_params.items():
-            if k.index('oauth_') == 0:
+            if 'oauth_' in k and k.index('oauth_') == 0:
                 oauth_params[k] = v
             elif v is not None:
                 api_params[k] = v
 
-        signature_params = dict(oauth_params.items() + api_params.items())
         # Generate the signature
+        signature_params = dict(oauth_params.items() + api_params.items())
         oauth_params['oauth_signature'] = self.__generate_signature(
                                         signature_params, request_method, url)
 
@@ -272,17 +279,16 @@ class VimeoAPI(object):
         else:
             params = all_params
 
-        request_method = request_method.upper()
         if request_method == 'GET':
-            keys = sorted(params.keys())
-            items = [(k,params[k]) for k in keys]
-            request_url = url + '?' + urllib.urlencode(items)
+            request_url = url + '?' + urllib.urlencode(params)
         elif request_method == 'POST':
             request_url = url
 
         # For some reason using the default user agent that urllib2 provides
         # causes the API to always return XML and not JSON.
-        headers = {'User-Agent': self._user_agent or "Python/vimeo.VimeoAPI"}
+        headers = {
+            'User-Agent': "Python/vimeo.VimeoClient %s" % self._app_name
+        }
         if use_auth_header:
             headers.update(self.__generate_auth_header(oauth_params))
 
@@ -360,6 +366,19 @@ class VimeoAPI(object):
         """
         self._cache_enabled = None
 
+    def _parse_token(self, tokenstring):
+        """
+        Parse the token string format into a dict.
+        """
+        params = parse_qs(tokenstring)
+        for k, v in params.items():
+            if len(v) == 1:
+                params[k] = v[0]
+            elif len(v) == 0:
+                params[k] = None
+        return params
+
+
     def get_access_token(self, verifier):
         """
         Get an access token. Make sure to call self.set_token() with the request
@@ -368,7 +387,7 @@ class VimeoAPI(object):
         access_token = self.__request(None, {
                 'oauth_verifier': verifier
             }, 'GET', API_ACCESS_TOKEN_URL, False, True)
-        return access_token
+        return self._parse_token(access_token)
 
     def get_authorize_url(self, token, permission = 'read'):
         """
@@ -385,14 +404,7 @@ class VimeoAPI(object):
         request_token = self.__request(None, {
                 'oauth_callback': callback_url
             }, 'GET', API_REQUEST_TOKEN_URL, False, False)
-        # These are returned as a query string
-        params = parse_qs(request_token)
-        for k, v in params.items():
-            if len(v) == 1:
-                params[k] = v[0]
-            elif len(v) == 0:
-                params[k] = None
-        return params
+        return self._parse_token(request_token)
 
     def get_token(self):
         """
@@ -408,22 +420,19 @@ class VimeoAPI(object):
         self._token_secret = token_secret
 
     def upload(self,
-        file_path_or_pointer,
-        use_multiple_chunks = False,
-        chunk_temp_dir = '.',
-        size = 2097152, # 2 MB chunks
-        replace_id = None):
+        file,
+        replace_id = None,
+        mimetype = None):
         """
-        Upload a video. Optionally, videos may be chunked into pieces of a set
-        size (default is 2 MB).
+        Upload a video using the streaming interface.
         """
-        if not hasattr(file_path_or_pointer, 'read'):
+        if not hasattr(file, 'read'):
             # Must be a file path. Try to open it.
-            fp = open(file_path_or_pointer)
-
+            fp = open(file)
+            ftype = mimetype or mimetypes.guess_type(file)[0] or 'video'
         else:
-            # Probably an open file or file-like object
-            fp = file_path_or_pointer
+            fp = file
+            ftype = mimetype or mimetypes.guess_type(file.name)[0] or ''
 
         file_name = os.path.basename(fp.name)
         fp.seek(0,2)
@@ -452,55 +461,15 @@ class VimeoAPI(object):
             raise VimeoAPIException(method, 710,
                         "File exceeds maximum allowed size.")
 
-        # Split the file up if using multiple pieces.
-        chunks = []
-        if use_multiple_chunks:
-            number_of_chunks = math.ceil(file_size / size)
-            for i in range(number_of_chunks):
-                chunk_file_name = os.path.join(chunk_temp_dir,
-                                        '%s.%s' % (file_name, i))
-                chunk = fp.read(size)
-                with open(chunk_file_name, 'w') as f:
-                    f.write(chunk)
-                chunks.append({
-                    'file': os.path.abspath(chunk_file_name),
-                    'size': len(chunk)
-                })
-            fp.close() # Won't need this anymore
-        else:
-            chunks.append({
-                'file': fp,
-                'size': file_size,
-            })
-
-        for i, chunk in enumerate(chunks):
-            params = {
-                'oauth_consumer_key': self._consumer_key,
-                'oauth_token':  self._token,
-                'oauth_signature_method': 'HMAC-SHA1',
-                'oauth_timestamp': time.time(),
-                'oauth_nonce': self.__generate_nonce(),
-                'oauth_version': '1.0',
-                'ticket_id': ticket,
-                'chunk_id': i,
-            }
-
-            if len(chunks) == 1:
-                chunkfp = fp
-            else:
-                chunkfp = open(chunk['file'])
-
-            # Generate the OAuth signature
-            params.update({
-                'oauth_signature': self.__generate_signature(params, 'POST',
-                                        API_REST_URL),
-                # don't include the file in the signature
-                'file_data': chunkfp.read(),
-            })
-
-            # Post the file
-            request = urllib2.Request(endpoint, params)
-            _rsp = urllib2.urlopen(request)
+        headers = {
+            'Content-Length': file_size,
+            'Content-Type': ftype,
+        }
+        # PUT the file
+        opener = urllib2.build_opener(urllib2.HTTPHandler)
+        request = urllib2.Request(endpoint, data = fp.read(), headers = headers)
+        request.get_method = lambda: 'PUT'
+        _rsp = opener.open(request)
 
         # Verify
         verify = self.call('vimeo.videos.upload.verifyChunks', {
@@ -509,12 +478,14 @@ class VimeoAPI(object):
 
         # Make sure out file sizes match up
         errors = []
-        for chunk_check in verify['ticket']['chunks']:
-            chunk = chunks[chunk_check['id']]
-            if chunk['size'] != chunk_check['size']:
-                # size incorrect, uh oh
-                errors.append('Chunk %s is actually %s but uploaded as %s' % \
-                    (chunk_check['id'], chunk['size'], chunk_check['size']))
+        info = verify['ticket']['chunks']['chunk']
+        if info['size'] != file_size:
+            errors.append(
+                VimeoAPIException(msg =
+                    'File chunk id %s is %s bytes but %s were uploaded' % \
+                    (info['id'], info['size'], info['size'])
+                )
+            )
 
         # Complete the upload
         method = 'vimeo.videos.upload.complete'
@@ -522,11 +493,6 @@ class VimeoAPI(object):
             'filename': file_name,
             'ticket_id': ticket,
         })
-
-        # Clean up
-        if len(chunks) > 1:
-            for chunk in chunks:
-                os.remove(chunk['file'])
 
         # Confirmation successful, return video id
         if complete['stat'] == 'ok':
