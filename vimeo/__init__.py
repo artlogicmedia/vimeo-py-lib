@@ -73,30 +73,32 @@ class VimeoAPIException(Exception):
 
 class VimeoAPI(object):
 
-    __cache_expire = 600
+    _cache_expire = 600
 
-    __consumer_key = None
-    __consumer_secret = None
-    __cache_enabled = None
-    __cache_dir = None
-    __token = None
-    __token_secret = None
+    _consumer_key = None
+    _consumer_secret = None
+    _cache_enabled = None
+    _cache_dir = None
+    _token = None
+    _token_secret = None
 
-    __cache_drop_keys = ('oauth_nonce', 'oauth_signature', 'oauth_timestamp')
+    _cache_drop_keys = ('oauth_nonce', 'oauth_signature', 'oauth_timestamp')
 
     def __init__(self,
         consumer_key,
         consumer_secret,
         token = None,
-        token_secret = None):
+        token_secret = None,
+        user_agent = None):
 
-        self.__consumer_key = consumer_key
-        self.__consumer_secret = consumer_secret
+        self._consumer_key = consumer_key
+        self._consumer_secret = consumer_secret
+        self._user_agent = user_agent
 
         if token and token_secret:
             self.set_token(token, token_secret)
 
-    def __cache(self, params, response_data):
+    def _cache(self, params, response_data):
         """
         Cache an API response
         """
@@ -104,21 +106,21 @@ class VimeoAPI(object):
         params = copy.copy(params)
 
         # Remove some unique things
-        for i in self.__cache_drop_keys:
+        for i in self._cache_drop_keys:
             if i in params:
                 del params[i]
 
         params = urllib.urlencode(params)
         hash = hashlib.md5(params).hexdigest()
 
-        if self.__cache_enabled == self.CACHE_FILE:
-            f = os.path.join(self.__cache_dir, hash, '.cache')
+        if self._cache_enabled == self.CACHE_FILE:
+            f = os.path.join(self._cache_dir, hash, '.cache')
             with open(f, 'w') as f:
                 pickle.dump(response_data, f)
             # Match the PHP library's functionality, which returns the number of
             # bytes written. str() is used to cast any unicode back to a string.
             return len(str(response_data))
-        elif self.__cache_enabled == self.CACHE_MEMORY:
+        elif self._cache_enabled == self.CACHE_MEMORY:
             self.__memory_cache[hash] = (response_data, time.time())
 
     def __generate_auth_header(self, oauth_params):
@@ -140,9 +142,8 @@ class VimeoAPI(object):
         """
         Generate a nonce for the call.
         """
-        return 'b0242ebe27867eb078f9af10ad687298'
-#        uid = str(uuid.uuid4())
-#        return hashlib.md5(uid).hexdigest()
+        uid = str(uuid.uuid4())
+        return hashlib.md5(uid).hexdigest()
 
     def __generate_signature(self,
         params,
@@ -160,7 +161,6 @@ class VimeoAPI(object):
         # here because we want to support 2.5+.
         items = [(k, params[k]) for k in keys]
         querystring = urllib.urlencode(items)
-        #querystring = '&'.join(['%s="%s"' % (k, params[k]) for k in keys])
 
         # Make the base string
         base_parts = (
@@ -173,8 +173,8 @@ class VimeoAPI(object):
 
         # Make the key
         key_parts = (
-            self.__consumer_secret,
-            self.__token_secret or '',
+            self._consumer_secret,
+            self._token_secret or '',
         )
         key_parts = self.url_encode_rfc3986(key_parts)
         key = '&'.join(key_parts)
@@ -190,27 +190,27 @@ class VimeoAPI(object):
 
         params = copy.copy(params)
         # Remove some unique things
-        for i in self.__cache_drop_keys:
+        for i in self._cache_drop_keys:
             if i in params:
                 del params[i]
 
         params = urllib.urlencode(params)
         hash = hashlib.md5(params).hexdigest
 
-        if self.__cache_enabled == self.CACHE_FILE:
-            f = os.path.join(self.__cache_dir, hash, '.cache')
+        if self._cache_enabled == self.CACHE_FILE:
+            f = os.path.join(self._cache_dir, hash, '.cache')
             # Check to see if the cache file is expired and remove it
             last_modified = os.path.getmtime(f)
             if f.endswith('.cache') and \
-            last_modified + self.__cache_expire < time.time():
+            last_modified + self._cache_expire < time.time():
                 os.remove(f)
             if os.path.exists(f):
                 with open(f) as f:
                     return pickle.load(f)
-        elif self.__cache_enabled == self.CACHE_MEMORY:
+        elif self._cache_enabled == self.CACHE_MEMORY:
             for k, v in self.__memory_cache.items():
                 _, last_modified = v
-                if last_modified + self.__cache_expire < time.time():
+                if last_modified + self._cache_expire < time.time():
                     del self.__memory_cache[k]
             return self.__memory_cache.get(k)
 
@@ -229,19 +229,19 @@ class VimeoAPI(object):
 
         # Prepare oauth arguments
         oauth_params = {
-            'oauth_consumer_key': self.__consumer_key,
+            'oauth_consumer_key': self._consumer_key,
             'oauth_version': '1.0',
             'oauth_signature_method': 'HMAC-SHA1',
-            'oauth_timestamp': 1389808533, ##int(time.time()),
+            'oauth_timestamp': int(time.time()),
             'oauth_nonce': self.__generate_nonce(),
         }
 
         # If we have a token, include it
-        if self.__token:
-            oauth_params['oauth_token'] = self.__token
+        if self._token:
+            oauth_params['oauth_token'] = self._token
 
         # Regular args
-        api_params = {'format': 'php'}
+        api_params = {'format': 'json'}
         if method:
             api_params['method'] = method
 
@@ -261,7 +261,7 @@ class VimeoAPI(object):
         all_params = dict(oauth_params.items() + api_params.items())
 
         # Return cached value
-        if self.__cache_enabled:
+        if self._cache_enabled:
             response_data = self.__get_cached(all_params)
             if cache and response_data:
                 return response_data
@@ -274,36 +274,29 @@ class VimeoAPI(object):
 
         request_method = request_method.upper()
         if request_method == 'GET':
-            request_url = url + '?' + urllib.urlencode(params)
+            keys = sorted(params.keys())
+            items = [(k,params[k]) for k in keys]
+            request_url = url + '?' + urllib.urlencode(items)
         elif request_method == 'POST':
             request_url = url
 
+        # For some reason using the default user agent that urllib2 provides
+        # causes the API to always return XML and not JSON.
+        headers = {'User-Agent': self._user_agent or "Python/vimeo.VimeoAPI"}
         if use_auth_header:
-            headers = self.__generate_auth_header(oauth_params)
-        else:
-            headers = {}
+            headers.update(self.__generate_auth_header(oauth_params))
 
         if request_method == 'POST':
-            request = urllib2.Request(request_url, urllib.urlencode(params), headers)
+            request = urllib2.Request(request_url, urllib.urlencode(items), headers)
         else:
             request = urllib2.Request(request_url, headers = headers)
-#            print request_url, headers, use_auth_header
-#            for k in params:
-#                if not k in request_url:
-#                    raise Exception("Found it")
 
-        request.add_header('User-Agent', "Python/vimeo.VimeoAPI")
-        for k, v in ({'Content-Length': '0', 'Content-Type': '', 'Host': 'server.michael.artlogic.net:5836', 'Accept': '*/*'}).items():
-            request.add_header(k, v)
-            
         try:
             response = urllib2.urlopen(request, timeout = 30)
         except TypeError:
             # Old version of Python that doesn't accept a timeout argument
             old_default = socket.getdefaulttimeout()
             socket.setdefaulttimeout(30)
-            # For some reason using the default header that urllib2 provides
-            # causes the API to always return XML and not JSON.
             response = urllib2.urlopen(request)
             socket.setdefaulttimeout(old_default)
 
@@ -312,8 +305,8 @@ class VimeoAPI(object):
             response_data = json_decode(response_data)
 
             # Cache the response
-            if self.__cache_enabled and cache:
-                self.__cache(all_params, response_data)
+            if self._cache_enabled and cache:
+                self._cache(all_params, response_data)
 
             if response_data.get('stat') == 'ok':
                 return response_data
@@ -330,12 +323,8 @@ class VimeoAPI(object):
         the user should be redirected.
         """
         t = self.get_request_token(callback_url)
-        self.set_token(
-            t['oauth_token'],
-            t['oauth_token_secret'],
-            'request')
-
-        url = self.get_authorize_url(self.__token, permission)
+        self.set_token(t['oauth_token'], t['oauth_token_secret'])
+        url = self.get_authorize_url(self._token, permission)
         return url
 
     def call(self,
@@ -358,18 +347,18 @@ class VimeoAPI(object):
         """
         Enable the cache, or switch between cache types.
         """
-        self.__cache_enabled = type
+        self._cache_enabled = type
         if type == CACHE_MEMORY:
             self.__memory_cache = {}
         elif type == CACHE_FILE:
-            self.__cache_dir = path
-        self.__cache_expire = expire
+            self._cache_dir = path
+        self._cache_expire = expire
 
     def disable_cache(self):
         """
         Disable the cache.
         """
-        self.__cache_enabled = None
+        self._cache_enabled = None
 
     def get_access_token(self, verifier):
         """
@@ -409,14 +398,14 @@ class VimeoAPI(object):
         """
         Get the stored auth token.
         """
-        return self.__token, self.__token_secret
+        return self._token, self._token_secret
 
     def set_token(self, token, token_secret):
         """
         Set the OAuth token
         """
-        self.__token = token
-        self.__token_secret = token_secret
+        self._token = token
+        self._token_secret = token_secret
 
     def upload(self,
         file_path_or_pointer,
@@ -486,8 +475,8 @@ class VimeoAPI(object):
 
         for i, chunk in enumerate(chunks):
             params = {
-                'oauth_consumer_key': self.__consumer_key,
-                'oauth_token':  self.__token,
+                'oauth_consumer_key': self._consumer_key,
+                'oauth_token':  self._token,
                 'oauth_signature_method': 'HMAC-SHA1',
                 'oauth_timestamp': time.time(),
                 'oauth_nonce': self.__generate_nonce(),
