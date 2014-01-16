@@ -12,7 +12,6 @@ import binascii
 import copy
 import hashlib
 import hmac
-import math
 import mimetypes
 import os
 import random
@@ -59,7 +58,7 @@ API_REQUEST_TOKEN_URL = 'http://vimeo.com/oauth/request_token'
 CACHE_FILE = 'file'
 CACHE_MEMORY = 'memory'
 
-class VimeoAPIException(Exception):
+class VimeoAPIError(Exception):
     """
     A subclass of Exception that provides the api method, error code, and error
     message of the API response.
@@ -71,8 +70,7 @@ class VimeoAPIException(Exception):
         self.msg = msg
 
     def __str__(self):
-        return "API Error calling method %s: %s %s" % \
-            (self.method, self.code, self.msg)
+        return " (%s) %s %s" % (self.method or 'None', self.code, self.msg)
 
 class VimeoClient(object):
 
@@ -89,13 +87,18 @@ class VimeoClient(object):
 
     _app_name = None
 
+    def __repr__(self):
+        app = ''
+        if self._app_name:
+            app = '-%s' % self._app_name
+        return "<VimeoClient%s %s>" % (app, self._consumer_key)
+
     def __init__(self,
         consumer_key,
         consumer_secret,
         token = None,
         token_secret = None,
         app_name = None):
-
 
         self._consumer_key = consumer_key
         self._consumer_secret = consumer_secret
@@ -123,13 +126,10 @@ class VimeoClient(object):
             f = os.path.join(self._cache_dir, hash, '.cache')
             with open(f, 'w') as f:
                 pickle.dump(response_data, f)
-            # Match the PHP library's functionality, which returns the number of
-            # bytes written. str() is used to cast any unicode back to a string.
-            return len(str(response_data))
         elif self._cache_enabled == CACHE_MEMORY:
             self.__memory_cache[hash] = (response_data, time.time())
 
-    def __generate_auth_header(self, oauth_params):
+    def _generate_auth_header(self, oauth_params):
         """
         Create the authorization header for a set of params.
         """
@@ -140,18 +140,16 @@ class VimeoClient(object):
             vals = map(self.url_encode_rfc3986, (k, str(v)))
             auth_header += ',%s="%s"' % tuple(vals)
 
-        # We're using urllib2.Request to make our request, so this returns a
-        # dict instead of a string (which is what the PHP library returns)
         return {'Authorization': auth_header}
 
-    def __generate_nonce(self):
+    def _generate_nonce(self):
         """
         Generate a nonce for the call.
         """
         uid = str(uuid.uuid4())
         return hashlib.md5(uid).hexdigest()
 
-    def __generate_signature(self,
+    def _generate_signature(self,
         params,
         request_method = 'GET',
         url = API_REST_URL):
@@ -162,9 +160,8 @@ class VimeoClient(object):
         keys = sorted(params.keys())
         params = self.url_encode_rfc3986(params)
 
-        # Make sure we iterate the dict in sorted order. Unlike PHP, Python does
-        # not guarantee dict key order. We aren't using collections.OrderedDict
-        # here because we want to support 2.5+.
+        # Make sure we iterate the dict in sorted order. We aren't using
+        #  collections.OrderedDict here because we want to support 2.5+.
         items = [(k, params[k]) for k in keys]
         querystring = urllib.urlencode(items)
 
@@ -189,13 +186,12 @@ class VimeoClient(object):
         hashed = hmac.new(key, base_string, hashlib.sha1)
         return binascii.b2a_base64(hashed.digest())[:-1]
 
-    def __get_cached(self, params):
+    def _get_cached(self, params):
         """
         Get the unserialized contents of the cached request.
         """
-
-        params = copy.copy(params)
         # Remove some unique things
+        params = copy.copy(params)
         for i in self._cache_drop_keys:
             if i in params:
                 del params[i]
@@ -220,7 +216,20 @@ class VimeoClient(object):
                     del self.__memory_cache[k]
             return self.__memory_cache.get(hash)
 
-    def __request(self,
+    def _parse_token_string(self, tokenstring):
+        """
+        Parse the token string format into a dict.
+        """
+        # Do this more manually for 2.5 support.
+        params = parse_qs(tokenstring)
+        for k, v in params.items():
+            if len(v) == 1:
+                params[k] = v[0]
+            elif len(v) == 0:
+                params[k] = None
+        return params
+
+    def _request(self,
         method,
         call_params = None,
         request_method = 'GET',
@@ -240,7 +249,7 @@ class VimeoClient(object):
             'oauth_version': '1.0',
             'oauth_signature_method': 'HMAC-SHA1',
             'oauth_timestamp': int(time.time()),
-            'oauth_nonce': self.__generate_nonce(),
+            'oauth_nonce': self._generate_nonce(),
         }
 
         # If we have a token, include it
@@ -261,7 +270,7 @@ class VimeoClient(object):
 
         # Generate the signature
         signature_params = dict(oauth_params.items() + api_params.items())
-        oauth_params['oauth_signature'] = self.__generate_signature(
+        oauth_params['oauth_signature'] = self._generate_signature(
                                         signature_params, request_method, url)
 
         # Merge all args
@@ -269,7 +278,7 @@ class VimeoClient(object):
 
         # Return cached value
         if self._cache_enabled:
-            response_data = self.__get_cached(all_params)
+            response_data = self._get_cached(all_params)
             if cache and response_data:
                 return response_data
 
@@ -290,10 +299,11 @@ class VimeoClient(object):
             'User-Agent': "Python/vimeo.VimeoClient %s" % self._app_name
         }
         if use_auth_header:
-            headers.update(self.__generate_auth_header(oauth_params))
+            headers.update(self._generate_auth_header(oauth_params))
 
         if request_method == 'POST':
-            request = urllib2.Request(request_url, urllib.urlencode(items), headers)
+            request = urllib2.Request(request_url, urllib.urlencode(items),
+                        headers = headers)
         else:
             request = urllib2.Request(request_url, headers = headers)
 
@@ -304,6 +314,8 @@ class VimeoClient(object):
             old_default = socket.getdefaulttimeout()
             socket.setdefaulttimeout(30)
             response = urllib2.urlopen(request)
+            # Set it back immediately so that we don't screw anything up. I
+            # don't think this is thread-safe.
             socket.setdefaulttimeout(old_default)
 
         if method:
@@ -318,7 +330,7 @@ class VimeoClient(object):
                 return response_data
             else:
                 error = response_data.get('err')
-                raise VimeoAPIException(method, error.get('code'),
+                raise VimeoAPIError(method, error.get('code'),
                                             error.get('msg'))
         else:
             return response.read()
@@ -330,8 +342,7 @@ class VimeoClient(object):
         """
         t = self.get_request_token(callback_url)
         self.set_token(t['oauth_token'], t['oauth_token_secret'])
-        url = self.get_authorize_url(self._token, permission)
-        return url
+        return self.get_authorize_url(self._token, permission)
 
     def call(self,
         method,
@@ -347,7 +358,7 @@ class VimeoClient(object):
 
         if not method.startswith('vimeo.'):
             method = 'vimeo.' + method
-        return self.__request(method, params, request_method, url, cache)
+        return self._request(method, params, request_method, url, cache)
 
     def enable_cache(self, type, path = '.', expire = 600):
         """
@@ -366,28 +377,19 @@ class VimeoClient(object):
         """
         self._cache_enabled = None
 
-    def _parse_token(self, tokenstring):
-        """
-        Parse the token string format into a dict.
-        """
-        params = parse_qs(tokenstring)
-        for k, v in params.items():
-            if len(v) == 1:
-                params[k] = v[0]
-            elif len(v) == 0:
-                params[k] = None
-        return params
-
-
     def get_access_token(self, verifier):
         """
         Get an access token. Make sure to call self.set_token() with the request
         token before calling this function.
         """
-        access_token = self.__request(None, {
+        access_token = self._request(None, {
                 'oauth_verifier': verifier
-            }, 'GET', API_ACCESS_TOKEN_URL, False, True)
-        return self._parse_token(access_token)
+            },
+            'GET',
+            API_ACCESS_TOKEN_URL,
+            False,
+            True)
+        return self._parse_token_string(access_token)
 
     def get_authorize_url(self, token, permission = 'read'):
         """
@@ -401,10 +403,14 @@ class VimeoClient(object):
         """
         Get a request token
         """
-        request_token = self.__request(None, {
+        request_token = self._request(None, {
                 'oauth_callback': callback_url
-            }, 'GET', API_REQUEST_TOKEN_URL, False, False)
-        return self._parse_token(request_token)
+            },
+            'GET',
+            API_REQUEST_TOKEN_URL,
+            False,
+            False)
+        return self._parse_token_string(request_token)
 
     def get_token(self):
         """
@@ -414,7 +420,7 @@ class VimeoClient(object):
 
     def set_token(self, token, token_secret):
         """
-        Set the OAuth token
+        Set the OAuth token for future requests.
         """
         self._token = token
         self._token_secret = token_secret
@@ -443,7 +449,7 @@ class VimeoClient(object):
         quota = self.call(method)
         quota_free = quota['user']['upload_space']['free']
         if quota_free < file_size:
-            raise VimeoAPIException(method, 707,
+            raise VimeoAPIError(method, 707,
                         "The file is larger than the user's remaining quota.")
 
         # Get an upload ticket
@@ -458,7 +464,7 @@ class VimeoClient(object):
         endpoint = rsp['ticket']['endpoint']
 
         if file_size > rsp['ticket']['max_file_size']:
-            raise VimeoAPIException(method, 710,
+            raise VimeoAPIError(method, 710,
                         "File exceeds maximum allowed size.")
 
         headers = {
@@ -481,7 +487,7 @@ class VimeoClient(object):
         info = verify['ticket']['chunks']['chunk']
         if info['size'] != file_size:
             errors.append(
-                VimeoAPIException(msg =
+                VimeoAPIError(msg =
                     'File chunk id %s is %s bytes but %s were uploaded' % \
                     (info['id'], info['size'], info['size'])
                 )
@@ -498,7 +504,7 @@ class VimeoClient(object):
         if complete['stat'] == 'ok':
             return complete['ticket']['video_id'], errors
         else:
-            raise VimeoAPIException(method, complete['err']['code'],
+            raise VimeoAPIError(method, complete['err']['code'],
                             complete['err']['msg'])
 
     @staticmethod
