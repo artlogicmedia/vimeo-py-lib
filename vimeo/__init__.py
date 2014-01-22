@@ -9,12 +9,10 @@ made.
 from __future__ import with_statement
 
 import binascii
-import copy
 import hashlib
 import hmac
 import mimetypes
 import os
-import random
 import socket
 import string
 import time
@@ -50,6 +48,8 @@ except ImportError:
     except ImportError:
         raise ImportError("Could not find a json library to import.")
 
+__all__ = ['VimeoClient', 'VimeoAPIError']
+
 # Data values used as defaults
 API_REST_URL = 'http://vimeo.com/api/rest/v2'
 API_AUTH_URL = 'http://vimeo.com/oauth/authorize'
@@ -58,6 +58,9 @@ API_REQUEST_TOKEN_URL = 'http://vimeo.com/oauth/request_token'
 
 CACHE_FILE = 'file'
 CACHE_MEMORY = 'memory'
+
+# Strip these parameters from requests when caching
+CACHE_DROP_PARAMETERS = ('oauth_nonce', 'oauth_signature', 'oauth_timestamp')
 
 class VimeoAPIError(Exception):
     """
@@ -75,18 +78,19 @@ class VimeoAPIError(Exception):
 
 class VimeoClient(object):
 
+    _app_name = None
+
+    _cache_dir = None
+    _cache_enabled = None
     _cache_expire = 600
 
     _consumer_key = None
     _consumer_secret = None
-    _cache_enabled = None
-    _cache_dir = None
+
     _token = None
     _token_secret = None
 
-    _cache_drop_keys = ('oauth_nonce', 'oauth_signature', 'oauth_timestamp')
-
-    _app_name = None
+    _urlopener = urllib2.build_opener(urllib2.HTTPHandler)
 
     def __repr__(self):
         app = ''
@@ -113,9 +117,9 @@ class VimeoClient(object):
         Cache an API response based on a hash of the parameters (minus certain
         request-specific ones).
         """
-        params = copy.copy(params)
+        params = params.copy()
         # Remove some unique things
-        for i in self._cache_drop_keys:
+        for i in CACHE_DROP_PARAMETERS:
             if i in params:
                 del params[i]
 
@@ -197,8 +201,8 @@ class VimeoClient(object):
         already in the cache.
         """
         # Remove some unique things
-        params = copy.copy(params)
-        for i in self._cache_drop_keys:
+        params = params.copy()
+        for i in CACHE_DROP_PARAMETERS:
             if i in params:
                 del params[i]
 
@@ -351,9 +355,8 @@ class VimeoClient(object):
         Internal utility function to URL encode a parameter or dict of
         parameters.
         """
-        # If it quacks like a dict ...
-        if hasattr(input, 'items') and callable(input.items):
-            input = copy.copy(input)
+        if isinstance(input, dict):
+            input = input.copy()
             for k, v in input.items():
                 input[k] = urllib.quote(str(v), safe = '')
             return input
@@ -398,7 +401,7 @@ class VimeoClient(object):
         Enable the cache, or switch between cache types. Current cache types are
         as follows:
 
-        vime.CACHE_FILE    - Store request information on the filesystem. Data
+        vimeo.CACHE_FILE    - Store request information on the filesystem. Data
                              is pickled/unpickled automatically when it is saved
                              to and loaded from files.
         vimeo.CACHE_MEMORY - Store request information in memory (in a
@@ -428,9 +431,9 @@ class VimeoClient(object):
             self._memory_cache = {}
         elif type == CACHE_FILE and self._cache_dir:
             files = os.path.listdir(self._cache_dir)
+            files = filter(lambda f: f.endswith('.cache'), files)
             for f in files:
-                if f.endswith('.cache'):
-                    os.remove(f)
+                os.remove(f)
 
     def get_access_token(self, verifier):
         """
@@ -531,10 +534,9 @@ class VimeoClient(object):
             'Content-Type': ftype,
         }
         # PUT the file
-        opener = urllib2.build_opener(urllib2.HTTPHandler)
         request = urllib2.Request(endpoint, data = fp.read(), headers = headers)
         request.get_method = lambda: 'PUT'
-        _rsp = opener.open(request)
+        self._urlopener.open(request)
 
         # Verify
         verify = self.call('vimeo.videos.upload.verifyChunks', {

@@ -1,4 +1,4 @@
-#!/usr/bin/env setup
+#!/usr/bin/env python
 
 try:
     from setuptools import setup, find_packages
@@ -10,13 +10,18 @@ except ImportError:
 setup(
     name = 'vimeo',
     version = '0.0.1',
-    packages = find_packages(exclude=['vimeo_tests']),
+    packages = find_packages(),
     author='Artlogic Media Limited',
     author_email='support@artlogic.net',
-    description = open('README.md').read(),
+    description = """
+This library provides a `vimeo` Python (2.5-2.7) module for interacting with the
+Vimeo Advanced API (v2). It is heavily based on
+(Vimeo's own PHP library)[https://github.com/vimeo/vimeo-php-lib] for the same
+purpose.
+    """.strip(),
     license = "MIT or GPLv3",
     classifiers = [
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 5 - Production/Stable',
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
         'Programming Language :: Python :: 2.5',
