@@ -16,6 +16,40 @@ library. By default the module will attempt to import the names `json` (looking
 for the stdlib module in 2.6+) or `cjson`, which is
 [available on PyPi](https://pypi.python.org/pypi/python-cjson).
 
+## Installation
+
+```bash
+$ git clone https://github.com/artlogicmedia/vimeo-py-lib.git
+$ cd vimeo-py-lib
+$ sudo python setup.py install
+```
+
+## Usage
+
+Basic usage of this module goes something like this:
+
+```python
+import vimeo
+
+permission = 'read' # Could also be 'write' or 'delete'
+client = vimeo.VimeoClient(my_consumer_id, my_consumer_secret)
+# Send the user to this URL to authorize your app
+authorization_url = client.auth(permission)
+
+# When they come back, get an access token. Assumes that the OAuth verifier is
+# now set to 'verifier' and that the tokens set by the `auth()` method haven't
+# been modified.
+token = client.get_access_token(verifier)
+client.set_token(token['oauth_token'], token['oauth_token_secret'])
+# Now you can start making API requests
+try:
+    client.call('some.vimeo.method', {'your_data': 'here'})
+except vimeo.VimeoAPIError:
+    print 'Call to API method %s failed!' % e.method
+    print 'Error code:', e.code
+    print 'Error message:', e.msg
+```
+
 ## API
 
 ### Differences from the PHP version
