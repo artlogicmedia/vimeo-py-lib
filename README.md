@@ -2,7 +2,7 @@
 
 This library provides a `vimeo` Python (2.5-2.7) module for interacting with the
 Vimeo Advanced API (v2). It is heavily based on
-(Vimeo's own PHP library)[https://github.com/vimeo/vimeo-php-lib] for the same
+[Vimeo's own PHP library](https://github.com/vimeo/vimeo-php-lib) for the same
 purpose.
 
 ## Dependencies
@@ -32,47 +32,68 @@ as follows:
 
 ### Methods
 
-* VimeoClient.**auth(permission = 'read', callback_url = 'oob')** - Return the
-  authorization URL for the specified permission and callback URL. Additionally,
-  this method will automatically get a new request token and set it as the
-  active token for the VimeoClient instance. *permission* should be one of
-  'read', 'write', or 'delete'.
-* VimeoClient.**call(method, params = None, request_method = 'GET',
-  url = API_REST_URL, cache = True)** - Make an arbitrary API call. *params*, if
-  provided, should be a dictionary of request parameters. If the cache is active
-  and you want this request to ignore it, set *cache* to `False`.
-* VimeoClient.**enable_cache(type, path = '.', expire = 600)** - Enable the
-  request cache. *type* should be either of the `CACHE_FILE` or `CACHE_MEMORY`
-  values from this module. *path* specifies the location to write cache files if
-  the file type is `CACHE_FILE`. *expire* specifies the number of seconds before
-  cached data is considered stale. (Note that stale data is cleared on every
-  request, but not between requests.)
-* VimeoClient.**disable_cache()** - Disable the cache. This will not empty an
-  existing cache data. If you want to empty the cache, call the *clear_cache()*
-  method before calling this method.
-* VimeoClient.**clear_cache(cache_type = None)** - Clear the cache. If the cache
-  is active and *cache_type* is not specified, the cache type specified will be
-  cleared (in the case of a file cache, all cache files will be removed; in the
-  case of the in-memory cache, the dictionary storing cache values will be
-  emptied). If the cache is not active and no cache type is specified, this
-  method will do nothing. *cache_type* should be either of the `CACHE_FILE` or
-  `CACHE_MEMORY` values from this module.
-* VimeoClient.**get_access_token(verifier)** - Exchange the currently active
-  request token (set with *set_token()* or *auth()*) for an access token using
-  the *verifier* string provided by either a Vimeo callback redirection or user
-  input.
-* VimeoClient.**get_authorize_url(token, permission = 'read')** - Get a URL at
-  which the user can authorize the given *token* string for the given
-  *permission* value. Unline the *auth()* method, above, this will not set any
-  request tokens, merely return a string.
-* VimeoClient.**get_request_token(callback_url = 'oob')** - Get a new request
-  token from Vimeo to begin the authorization process.
-* VimeoClient.**get_token()** - Get the currently active token. Returns a
-  2-tuple of `(token, token_secret)`.
-* VimeoClient.**set_token(token, token_secret)** - Set a *token* and
-  *token_secret* value as the currently active token.
-* VimeoClient.**upload(file, replace_id = None, mimetype = None)** - Upload
-  *file* to Vimeo, optionally replacing an existing video with the id
+* `VimeoClient.auth(permission = 'read', callback_url = 'oob')`
+  <br><br>
+  Return the authorization URL for the specified permission and callback URL.
+  Additionally, this method will automatically get a new request token and set
+  it as the active token for the VimeoClient instance. *permission* should be
+  one of 'read', 'write', or 'delete'.
+
+* `VimeoClient.call(method, params = None, request_method = 'GET',
+  url = API_REST_URL, cache = True)`<br><br>
+  Make an arbitrary API call. *params*, if provided, should be a dictionary of 
+  request parameters. If the cache is active and you want this request to ignore
+  it, set *cache* to `False`.
+
+* `VimeoClient.enable_cache(type, path = '.', expire = 600)`
+  <br><br>
+  Enable the request cache. *type* should be either of the `CACHE_FILE` or
+  `CACHE_MEMORY` values from this module. *path* specifies the location to write
+  cache files if the file type is `CACHE_FILE`. *expire* specifies the number of
+  seconds before cached data is considered stale. (Note that stale data is
+  cleared on every request, but not between requests.)
+
+* `VimeoClient.disable_cache()`
+  <br><br>
+  Disable the cache. This will not empty an existing cache data. If you want to
+  empty the cache, call the *clear_cache()* method before calling this method.
+
+* `VimeoClient.clear_cache(cache_type = None)`
+  <br><br>
+  Clear the cache. If the cache is active and *cache_type* is not specified, the
+  cache type specified will be cleared (in the case of a file cache, all cache
+  files will be removed; in the case of the in-memory cache, the dictionary
+  storing cache values will be emptied). If the cache is not active and no cache
+  type is specified, this method will do nothing. *cache_type* should be either
+  of the `CACHE_FILE` or `CACHE_MEMORY` values from this module.
+
+* `VimeoClient.get_access_token(verifier)`
+  <br><br>
+  Exchange the currently active request token (set with *set_token()* or
+  *auth()*) for an access token using the *verifier* string provided by either a
+  Vimeo callback redirection or user input.
+
+* `VimeoClient.get_authorize_url(token, permission = 'read')`
+  <br><br>
+  Get a URL at which the user can authorize the given *token* string for the 
+  given *permission* value. Unline the *auth()* method, above, this will not set
+  any request tokens, merely return a string.
+
+* `VimeoClient.get_request_token(callback_url = 'oob')`
+  <br><br>
+  Get a new request token from Vimeo to begin the authorization process.
+
+* `VimeoClient.get_token()`
+  <br><br>
+  Get the currently active token. Returns a 2-tuple of `(token, token_secret)`.
+
+* `VimeoClient.set_token(token, token_secret)`
+  <br><br>
+  Set a *token* and *token_secret* value as the currently active token.
+
+* `VimeoClient.upload(file, replace_id = None, mimetype = None)`
+  <br><br>
+  Upload *file* to Vimeo, optionally replacing an existing video with the id
   *replace_id*. *file* can either be a file-like object (with *read* and *seek*
   methods) or a file path as a string. If the *mimetype* value is specified, the
   VimeoClient isntance will attempt to guess the MIME type using
