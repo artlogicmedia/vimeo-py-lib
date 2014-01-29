@@ -1,9 +1,16 @@
 """
+vimeo-py-lib v0.0.1
+https://github.com/artlogicmedia/vimeo-py-lib
+
 This module provides a (nearly) straight port of the phpVimeo class in Vimeo's
 vimeo-php-lib library (https://github.com/vimeo/vimeo-php-lib).
 
-There are probably plenty of further Python-centric adjustments that could be
-made.
+For a full description of the API methods and a general overview of how to use
+this module, see the included README.md file.
+
+Copyright (c) 2014 Artlogic Media Ltd. ]
+http://artlogic.net
+Released under the MIT or GPLv3 licenses.
 """
 
 from __future__ import with_statement
@@ -308,10 +315,10 @@ class VimeoClient(object):
         elif request_method == 'POST':
             request_url = url
 
-        # For some reason using the default user agent that urllib2 provides
-        # causes the API to always return XML and not JSON.
+        # The Vimeo API blocks many common UAs, so we want to set up a unique
+        # one.
         headers = {
-            'User-Agent': "Python/vimeo.VimeoClient %s" % self._app_name
+            'User-Agent': "vimeo-py-lib/%s" % self._app_name
         }
         if use_auth_header:
             headers.update(self._generate_auth_header(oauth_params))
@@ -546,7 +553,7 @@ class VimeoClient(object):
         # Make sure out file sizes match up
         errors = []
         info = verify['ticket']['chunks']['chunk']
-        if info['size'] != file_size:
+        if int(info['size']) != file_size:
             errors.append(
                 VimeoAPIError(msg =
                     'File chunk id %s is %s bytes but %s were uploaded' % \
