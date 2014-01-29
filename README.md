@@ -1,20 +1,17 @@
 # vimeo-py-lib
 
 This library provides a `vimeo` Python (2.5-2.7) module for interacting with the
-Vimeo Advanced API (v2). It is heavily based on
-[Vimeo's own PHP library](https://github.com/vimeo/vimeo-php-lib) for the same
-purpose.
+Vimeo Advanced API (v2). It is heavily based on [Vimeo's own PHP library][1] for
+the same purpose.
 
 ## Dependencies
 
 If you are running Python 2.6 or 2.7, the only dependencies are having either
-[setuptools](https://pypi.python.org/pypi/setuptools) or
-[ez_setup](https://pypi.python.org/pypi/ez_setup) installed on your system.
+[setuptools][2] or [ez_setup][3] installed on your system.
 
 If you are using this on Python 2.5 you will need to install a JSON parsing
 library. By default the module will attempt to import the names `json` (looking
-for the stdlib module in 2.6+) or `cjson`, which is
-[available on PyPi](https://pypi.python.org/pypi/python-cjson).
+for the stdlib module in 2.6+) or `cjson`, which is [available on PyPi][4].
 
 ## Installation
 
@@ -49,6 +46,24 @@ except vimeo.VimeoAPIError:
     print 'Error code:', e.code
     print 'Error message:', e.msg
 ```
+
+### Detailed examples
+
+For working examples of how to interact with and authorize agains the Vimeo API,
+see the [provided example files][5] included.
+
+These examples will walk you through both methods of authentication (callback or
+manually-entered verification) as well as showing basic video uploads using
+either a specified filepath, or a file-like object received by a form
+submission.
+
+## Further reading
+
+If you aren't familiar with the OAuth protocol, [this guide][6] is recommended
+reading.
+
+The full documentation for Vimeo's v2 API can be found here:
+[https://developer.vimeo.com/apis/advanced][7]
 
 ## API
 
@@ -137,17 +152,29 @@ as follows:
 
 ## Bugs
 
-Please file any bugs you find on the Github issues page for this project.
+Please file any bugs you find on the [Github issues page][8] for this project.
 
 ## TODO/caveats/warnings
 
 * I currently don't like the fact that this is using a roll-yer-own OAuth
-  implementation (copied from Vimeo's, but still). Will migrade to the `oauth2`
+  implementation (copied from Vimeo's, but still). Will migrate to the `oauth2`
   module as soon as time permits.
 * The verification of uploads is using the `vimeo.videos.upload.verifyChunks`
   method, instead of proper streaming verification (which involves repeating the
   `PUT` used to upload the video and checking the response headers). This is not
-  optimal, and it means that resuming interrupted uploads isn't supported.
+  optimal, and it means that resuming interrupted uploads isn't supported. This
+  will also be rectified in the future.
 * Support for arbitrary caching methods, by passing in functions for saving and
   loading from the cache, might be nice. This would enable database/session
   caching of requests, which would be better for some apps.
+
+
+
+[1]: https://github.com/vimeo/vimeo-php-lib
+[2]: https://pypi.python.org/pypi/setuptools
+[3]: https://pypi.python.org/pypi/ez_setup
+[4]: https://pypi.python.org/pypi/python-cjson
+[5]: https://github.com/artlogicmedia/vimeo-py-lib/tree/master/examples
+[6]: http://hueniverse.com/oauth/guide/
+[7]: https://developer.vimeo.com/apis/advanced
+[8]: https://github.com/artlogicmedia/vimeo-py-lib/issues
