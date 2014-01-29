@@ -1,12 +1,10 @@
 #!/usr/bin/env python2
 """
-The following is a simple example for uploading a video from the command line.
-
 This example gives you the workflow for authorizing an app that does not use
 the callback mechanism that is available in a web context, and instead requires
 the user to enter the OAuth verifier manually.
 
-For web usage, see the simple_browser_upload.py example.
+For a web-based example with a callback, see the simple_browser_upload.py file.
 
 Usage: ./simple_command_line_upload.py <filepath> <title> <description>
 """
@@ -16,7 +14,11 @@ import vimeo
 
 if __name__ == '__main__':
 
-    filepath, title, description = (sys.argv[1:] + ['', '', ''])[:3]
+    try:
+        filepath, title, description = sys.argv[1:]
+    except ValueError:
+        print __doc__
+        sys.exit(1)
 
     consumer_id = raw_input("Please enter your consumer id: ")
     consumer_secret = raw_input("Please enter your consumer secret: ")
