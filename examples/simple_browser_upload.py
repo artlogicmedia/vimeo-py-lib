@@ -46,8 +46,6 @@ def handle_request(path, *args, **kwargs):
     token = bottle.request.query.get('oauth_token')
     verifier = bottle.request.query.get('oauth_verifier')
 
-    print session, token, verifier
-
     if session.get('access_token'):
         # We already have an access key. Set it on the client and continue.
         access_token = session['access_token']
@@ -70,7 +68,6 @@ def handle_request(path, *args, **kwargs):
             # canonical reference to the video in question.
             video_id, errors = client.upload(video.file, None, mimetype)
             # Now set the title and description
-            print title, description
             client.call('videos.setTitle', {
                 'title': title,
                 'video_id': video_id
