@@ -8,8 +8,7 @@ vimeo-php-lib library (https://github.com/vimeo/vimeo-php-lib).
 For a full description of the API methods and a general overview of how to use
 this module, see the included README.md file.
 
-Copyright (c) 2014 Artlogic Media Ltd. ]
-http://artlogic.net
+Copyright (c) 2014 Artlogic Media Ltd. http://artlogic.net
 Released under the MIT or GPLv3 licenses.
 """
 
