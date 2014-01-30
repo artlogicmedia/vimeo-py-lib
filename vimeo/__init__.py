@@ -27,11 +27,9 @@ import urllib2
 import uuid
 
 try:
-    import urlparse
-    parse_qs = urlparse.parse_qs
-except AttributeError:
-    import cgi
-    parse_qs = cgi.parse_qs
+    from urlparse import parse_qs
+except ImportError:
+    from cgi import parse_qs
 
 try:
     import cPickle
