@@ -32,8 +32,7 @@ except ImportError:
     from cgi import parse_qs
 
 try:
-    import cPickle
-    pickle = cPickle
+    import cPickle as pickle
 except ImportError:
     # Respect for alternate implementations
     import pickle
@@ -47,8 +46,7 @@ try:
         return cjson.decode(data.replace('\/', '/'))
 except ImportError:
     try:
-        import json
-        json_decode = json.loads
+        from json import loads as json_decode
     except ImportError:
         raise ImportError("Could not find a json library to import.")
 
